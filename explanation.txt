@@ -1,0 +1,43 @@
+To create a Python program that manages appointments via the command line using the Google Calendar API, 
+you will need to follow several setup steps to get your API credentials, install the necessary libraries, 
+and then implement the logic for authentication, checking free/busy slots, and creating events. 
+
+Prerequisites and Setup
+1. Enable the Google Calendar API: Go to the Google Cloud Console, create a new project, and enable the Google Calendar API.
+2. Create OAuth Credentials:
+In the console, go to "APIs & Services" > "Credentials".
+Click "Create Credentials" > "OAuth client ID".
+Select "Desktop app" as the application type and give it a name.
+Click "Create", then download the credentials.json file and place it in the same directory as your Python script.
+
+3. Install Google Client Library:
+On Bash:
+
+pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+4. Google Calendar IDs: You will need the email addresses associated with the service provider's and client's Google Calendars. 
+
+Python Program
+example.py
+
+How to Run the Program
+Save the code above as a Python file (e.g., scheduler.py).
+Ensure you have credentials.json in the same directory. The first time you run a command, a browser window will open 
+asking for authentication. After granting permission, a token.json file will be created for future use. 
+
+Example Usage (List Slots):
+To list available 30-minute slots for the next 24 hours:
+
+bash
+# Ensure you use your specific provider email and correct time formats
+python scheduler.py --mode list --provider_calendar_id "provider-email@gmail.com" --start_time "2025-06-11T09:00:00Z" --end_time "2025-06-12T09:00:00Z" --duration 30
+
+Example Usage (Book Appointment):
+To book an appointment in one of the discovered slots:
+
+bash
+# Ensure you use your specific provider email and client email, and a valid start time
+python scheduler.py --mode book --provider_calendar_id "provider-email@gmail.com" --client_email "client-email@example.com" --start_time "2025-06-11T10:00:00Z" --duration 30
+
+
+

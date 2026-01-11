@@ -1,0 +1,53 @@
+https://github.com/davorf/CalSyncHAB/tree/master
+
+A simple Python script that authenticates via OAuth2, and uses Google Calendar API to populate OH items with an event information.
+
+First, you need to create OAuth2 credentials (https://console.developers.google.com), download credentials in JSON format and place it in CalSyncHAB folder (cloned or downloaded from a github). After installing Python (both 2.x and 3.x will work), you need to install following packages:
+
+python -m pip install --upgrade google-api-python-client
+python -m pip install configparser
+python -m pip install requests
+In the CalSyncHAB.ini you need to set:
+
+Application name - name of the application that will ask for an authentication
+
+Scope - should not be changed
+
+CalendarId - ID of the calendar you want to retrieve information from (if you have only one calendar, “primary” keyword will suffice, if not, you have to use Calendar ID shown in the settings of that calendar)
+
+MaxEvents - maximal number of events retrieved (starting from current date and time)
+
+TimeZone - in format ±HH:mm
+
+ClientSecretFile - name of the OAuth2 credentials file in JSON format
+
+HostName - IP address or host name of the OH server
+
+Port - Port of the OH server (usually 8080)
+
+SSLConnection - Should be left as False (not used at the moment)
+
+Username - not used at the moment
+
+Password - not used at the moment
+
+ItemPrefix - prefix of the calendar items in OpenHAB - for example, if you use ItemPrefix Calendar_Google_Primary_ you should create following items:
+
+Calendar_Google_Primary_Event1_Summary (String)
+Calendar_Google_Primary_Event1_Location (String)
+Calendar_Google_Primary_Event1_Description (String)
+Calendar_Google_Primary_Event1_StartTime (DateTime)
+Calendar_Google_Primary_Event1_EndTime (DateTime)
+
+If you’ve set MaxEvents to 5, you should have 5 sets of those items - for example Calendar_Google_Primary_Event1_Summary to Calendar_Google_Primary_Event5_Summary
+
+After executing script for the first time (first time it should be done manually, not via OpenHAB), it will open Web Browser and ask you for a permission to access your calendar. You need to sign in to your Google account (if you aren’t signed in already) and press Allow button.
+
+Then you can use rules to trigger this Python script via executeCommandLine on some specific time (cron expression) or via switch in UI. Finally, the script can be found here:
+
+https://github.com/davorf/CalSyncHAB
+
+If this explanation sounds confusing, feel free to post your questions here, or open an issue on the github repository.
+
+Best regards,
+Davor

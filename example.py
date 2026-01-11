@@ -1,0 +1,141 @@
+import argparse
+import datetime
+import os.path
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+# If modifying these scopes, delete the file token.json.
+SCOPES = ['www.googleapis.com']
+
+def authenticate_google_calendar():
+    """Authenticates with the Google Calendar API, creating/refreshing a token file."""
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    return build('calendar', 'v3', credentials=creds)
+
+def get_free_busy_slots(service, calendar_id, start_time, end_time, duration_minutes=30):
+    """
+    Checks the free/busy status of a calendar for a given time range and
+    identifies available slots of a specific duration.
+    """
+    body = {
+        "timeMin": start_time.isoformat(),
+        "timeMax": end_time.isoformat(),
+        "timeZone": 'UTC', # Use a consistent timezone, or grab local machine's
+        "items": [{"id": calendar_id}]
+    }
+    
+    try:
+        # Use the freebusy API to find busy times
+        events_result = service.freebusy().query(body=body).execute()
+        busy_slots = events_result['calendars'][calendar_id]['busy']
+        
+        # Simple logic to find free slots (assumes start/end times align with slot boundaries)
+        free_slots = []
+        current_time = start_time
+        while current_time + datetime.timedelta(minutes=duration_minutes) <= end_time:
+            slot_end = current_time + datetime.timedelta(minutes=duration_minutes)
+            is_busy = any(
+                datetime.datetime.fromisoformat(busy['start']) < slot_end and
+                datetime.datetime.fromisoformat(busy['end']) > current_time
+                for busy in busy_slots
+            )
+            if not is_busy:
+                free_slots.append((current_time.strftime("%Y-%m-%d %H:%M"), slot_end.strftime("%H:%M")))
+            current_time = slot_end
+            
+        return free_slots
+    except HttpError as error:
+        print(f"An error occurred: {error}")
+        return []
+
+def create_appointment(service, provider_calendar_id, client_email, start_time_str, duration_minutes=30):
+    """Creates a new event, inviting the client and updating both calendars."""
+    # Parse the start time string into a datetime object
+    start_time = datetime.datetime.fromisoformat(start_time_str).replace(tzinfo=datetime.timezone.utc)
+    end_time = start_time + datetime.timedelta(minutes=duration_minutes)
+
+    event = {
+        'summary': 'Service Appointment',
+        'description': 'Appointment between service provider and client.',
+        'start': {
+            'dateTime': start_time.isoformat(),
+            'timeZone': 'UTC',
+        },
+        'end': {
+            'dateTime': end_time.isoformat(),
+            'timeZone': 'UTC',
+        },
+        'attendees': [
+            {'email': provider_calendar_id}, # Service Provider
+            {'email': client_email, 'responseStatus': 'needsAction'}, # Client
+        ],
+        'reminders': {
+            'useDefault': False,
+            'overrides': [
+                {'method': 'email', 'minutes': 24 * 60},
+                {'method': 'popup', 'minutes': 10},
+            ],
+        },
+        'conferenceData': {
+             # Optionally include a Google Meet link
+            'createRequest': {'requestId': 'random-string-for-meet-link'}, 
+        }
+    }
+    
+    try:
+        event = service.events().insert(calendarId=provider_calendar_id, body=event, conferenceDataVersion=1).execute()
+        print(f"Appointment created successfully: {event.get('htmlLink')}")
+    except HttpError as error:
+        print(f"An error occurred while creating the event: {error}")
+
+def main():
+    """Main function to handle command line arguments."""
+    parser = argparse.ArgumentParser(description="Google Calendar Appointment Manager")
+    parser.add_argument('--mode', required=True, choices=['list', 'book'], help="Mode: 'list' available slots or 'book' an appointment")
+    parser.add_argument('--provider_calendar_id', required=True, help="Email of the service provider's calendar")
+    parser.add_argument('--client_email', help="Email of the client (required for booking)")
+    parser.add_argument('--start_time', help="Start time for booking (ISO format, e.g., '2025-06-11T10:00:00Z')")
+    parser.add_argument('--end_time', help="End time boundary for listing slots (ISO format, e.g., '2025-06-12T00:00:00Z')")
+    parser.add_argument('--duration', type=int, default=30, help="Duration of the appointment in minutes (default: 30)")
+    
+    args = parser.parse_args()
+    service = authenticate_google_calendar()
+
+    if args.mode == 'list':
+        if not args.end_time or not args.start_time:
+            print("Error: 'start_time' and 'end_time' are required for listing.")
+            return
+
+        start = datetime.datetime.fromisoformat(args.start_time).replace(tzinfo=datetime.timezone.utc)
+        end = datetime.datetime.fromisoformat(args.end_time).replace(tzinfo=datetime.timezone.utc)
+        
+        slots = get_free_busy_slots(service, args.provider_calendar_id, start, end, args.duration)
+        if slots:
+            print(f"\nAvailable {args.duration}-minute slots:")
+            for start_str, end_str in slots:
+                print(f"- Start: {start_str}, End: {end_str}")
+        else:
+            print("No available slots found in the specified range.")
+
+    elif args.mode == 'book':
+        if not args.client_email or not args.start_time:
+            print("Error: 'client_email' and 'start_time' are required for booking.")
+            return
+        
+        create_appointment(service, args.provider_calendar_id, args.client_email, args.start_time, args.duration)
+
+if __name__ == '__main__':
+    main()
