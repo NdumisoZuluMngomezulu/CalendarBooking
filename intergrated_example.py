@@ -56,6 +56,7 @@ def volunteer_to_teach(service, event_id, tutor_email):
                             body=event, sendUpdates='all').execute()
     print(f"Tutor {tutor_email} added to session.")
 
+#cancel booking without checking if someone has accepted
 def cancel_booking(service, event_id):
     """Cancels the booking and reverts slot to 'Available'."""
     event = service.events().get(calendarId=ORG_CALENDAR_ID, eventId=event_id).execute()
@@ -64,6 +65,44 @@ def cancel_booking(service, event_id):
     service.events().update(calendarId=ORG_CALENDAR_ID, eventId=event_id, 
                             body=event, sendUpdates='all').execute()
     print("Booking cancelled and slot reset.")
+
+#only allows cancelation no one has accepted
+def cancel_booking_ifonly(event_id, user_email, user_type):
+    """
+    Cancels a booking if the relevant counterparty has not accepted.
+    A student can cancel if a volunteer hasn't accepted.
+    A volunteer can cancel if a student hasn't accepted.
+    """
+    service = get_calendar_service()
+
+    try:
+        # Retrieve the event details
+        event = service.events().get(calendarId=CALENDAR_ID, eventId=event_id).execute()
+        attendees = event.get('attendees', [])
+        
+        student_accepted = False
+        volunteer_accepted = False
+        
+        # Check the response status of all attendees
+        for attendee in attendees:
+            status = attendee.get('responseStatus')
+            # For this logic, we assume we know which email belongs to which role beforehand.
+            # A more robust system would involve storing roles in an external DB or extended props.
+            # Here, let's assume we can identify based on provided user_email for the action
+            # and another specific email for the counterparty (e.g., a known volunteer manager email).
+            # The prompt implies the "organization's calendar" manages both.
+
+            # Simple logic: If any attendee other than the acting user has 'accepted' status, prevent cancellation.
+            if attendee.get('email') != user_email and status == 'accepted':
+                 print(f"Cancellation blocked: Counterparty ({attendee.get('email')}) has already accepted the booking.")
+                 return
+            
+        # If the conditions are met (no one else accepted, or only pending/declined), cancel the event.
+        service.events().delete(calendarId=CALENDAR_ID, eventId=event_id, sendUpdates='all').execute()
+        print(f"Event {event_id} has been cancelled successfully by {user_email} (as {user_type}). All guests notified.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tutor/Student Calendar CLI')
