@@ -1,0 +1,8 @@
+Building a student-tutor scheduling system for 2026 requires using the Google Calendar API to manage personal and shared organizational calendars. 
+Prerequisites & Setup
+Google Cloud Project: Enable the Google Calendar API in the Google Cloud Console.
+Authentication: Create an OAuth 2.0 Client ID for a Desktop App and download the credentials.json file.
+Permissions: Use the scope www.googleapis.com to allow reading and writing events.
+Install Libraries: Run pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib. 
+Python Implementation
+This script uses argparse to handle command-line operations for listing, booking, and canceling slots. 
